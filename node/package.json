@@ -1,0 +1,13 @@
+{
+  "name": "geospatial-queries",
+  "version": "1.0.0",
+  "description": "Geospatial query performance comparison",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "pg": "^8.7.1",
+    "ngeohash": "^0.6.3"
+  }
+}

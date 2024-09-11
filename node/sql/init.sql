@@ -11,10 +11,10 @@ CREATE TABLE IF NOT EXISTS entities (
 );
 
 -- Create a function to generate geohash
-CREATE OR REPLACE FUNCTION generate_geohash(lat float, lon float, precision int)
+CREATE OR REPLACE FUNCTION generate_geohash(lat float, lon float, hash_length int)
 RETURNS text AS $$
 BEGIN
-    RETURN ST_GeoHash(ST_SetSRID(ST_MakePoint(lon, lat), 4326), precision);
+    RETURN ST_GeoHash(ST_SetSRID(ST_MakePoint(lon, lat), 4326), hash_length);
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
