@@ -40,6 +40,9 @@ CREATE INDEX idx_entities_lon ON entities (longitude);
 CREATE INDEX idx_entities_lat_lon ON entities (latitude, longitude);
 CREATE INDEX idx_entities_geohash ON entities (geohash);
 
+
+-- Index for 4-character geohash prefix
+CREATE INDEX idx_entities_geohash_prefix ON entities (left(geohash, 4));
 -- Function to generate random coordinates within Bihar
 CREATE OR REPLACE FUNCTION random_bihar_coordinate()
 RETURNS TABLE(lat DECIMAL(9,6), lon DECIMAL(9,6)) AS $$
