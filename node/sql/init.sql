@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS entities (
     id SERIAL PRIMARY KEY,
     latitude DECIMAL(9,6),
     longitude DECIMAL(9,6),
-    geom geometry(Point, 4326),
+    geom geometry(Point, 6207),
     geohash text
 );
 
@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS entities (
 CREATE OR REPLACE FUNCTION generate_geohash(lat float, lon float, hash_length int)
 RETURNS text AS $$
 BEGIN
-    RETURN ST_GeoHash(ST_SetSRID(ST_MakePoint(lon, lat), 4326), hash_length);
+    RETURN ST_GeoHash(ST_SetSRID(ST_MakePoint(lon, lat), 6207), hash_length);
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
@@ -22,7 +22,7 @@ $$ LANGUAGE plpgsql IMMUTABLE;
 CREATE OR REPLACE FUNCTION update_geom_and_geohash()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.geom = ST_SetSRID(ST_MakePoint(NEW.longitude, NEW.latitude), 4326);
+    NEW.geom = ST_SetSRID(ST_MakePoint(NEW.longitude, NEW.latitude), 6207);
     NEW.geohash = generate_geohash(NEW.latitude, NEW.longitude, 8);
     RETURN NEW;
 END;

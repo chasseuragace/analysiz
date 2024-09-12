@@ -22,7 +22,7 @@ module.exports.geohashApproach = async function(lat, lon, radius) {
     WHERE geohash LIKE (SELECT LEFT(generate_geohash($1, $2, 8), 5) || '%')
     AND ST_DWithin(
       geom,
-      ST_SetSRID(ST_MakePoint($2, $1), 4326),
+      ST_SetSRID(ST_MakePoint($2, $1), 6207),
       $3
     );
   `, [lat, lon, radius]);
@@ -56,7 +56,7 @@ module.exports.haversineApproach = async function(lat, lon, radius) {
     SELECT * FROM entities
     WHERE ST_DWithin(
       geom,
-      ST_SetSRID(ST_MakePoint($2, $1), 4326),
+      ST_SetSRID(ST_MakePoint($2, $1), 6207),
       $3
     );
   `, [lat, lon, radius]);
@@ -78,7 +78,7 @@ module.exports.dbscanApproach = async function(lat, lon, radius, minPoints) {
       FROM entities
       WHERE ST_DWithin(
         geom,
-        ST_SetSRID(ST_MakePoint($2, $1), 4326),
+        ST_SetSRID(ST_MakePoint($2, $1), 6207),
         $3
       )
     )
@@ -97,9 +97,9 @@ module.exports.knnApproach = async function(lat, lon, k) {
   const start = Date.now();
   const result = await pool.query(`
     SELECT id, latitude, longitude,
-           ST_Distance(geom, ST_SetSRID(ST_MakePoint($2, $1), 4326)) AS distance
+           ST_Distance(geom, ST_SetSRID(ST_MakePoint($2, $1), 6207)) AS distance
     FROM entities
-    ORDER BY geom <-> ST_SetSRID(ST_MakePoint($2, $1), 4326)
+    ORDER BY geom <-> ST_SetSRID(ST_MakePoint($2, $1), 6207)
     LIMIT $3;
   `, [lat, lon, k]);
   const end = Date.now();
@@ -123,7 +123,7 @@ module.exports.runComparison = async function(lat, lon, radius, k, minPoints, vo
       SELECT 
         random() * 180 - 90 AS latitude,
         random() * 360 - 180 AS longitude,
-        ST_SetSRID(ST_MakePoint(longitude, latitude), 4326),
+        ST_SetSRID(ST_MakePoint(longitude, latitude), 6207),
         generate_geohash(latitude, longitude, 8)
       FROM generate_series(1, $1);
     `, [volume]);

@@ -5,17 +5,31 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
-async function geohashApproach(coordinates) {
+async function geohashApproach(coordinates, radius) {
   const start = Date.now();
   const givenHashes = coordinates.map(([lat, lon]) => geohash.encode(lat, lon, 4));
   const query = `
-    SELECT e.*
+    SELECT DISTINCT e.*
     FROM entities e
-    WHERE LEFT(e.geohash, 4) = ANY($1::text[]);
+    WHERE LEFT(e.geohash, 4) = ANY($1::text[])
+    AND EXISTS (
+      SELECT 1
+      FROM unnest($2::float[], $3::float[]) WITH ORDINALITY AS t(lat, lon, idx)
+      WHERE ST_DWithin(
+        e.geom,
+        ST_SetSRID(ST_MakePoint(t.lon, t.lat), 6207),
+        $4  -- Radius is already in meters, no need for conversion
+      )
+    );
   `;
 
   try {
-    const result = await pool.query(query, [givenHashes]);
+    const result = await pool.query(query, [
+      givenHashes,
+      coordinates.map(c => c[0]),
+      coordinates.map(c => c[1]),
+      radius
+    ]);
     const end = Date.now();
     return {
       approach: 'geohash',
@@ -27,18 +41,23 @@ async function geohashApproach(coordinates) {
     throw error;
   }
 }
-
 async function euclideanApproach(coordinates, radius) {
   const start = Date.now();
+  
+  // Convert radius from meters to degrees
+  const radiusInDegrees = radius / 111320;
+
   const result = await pool.query(`
-    SELECT e.*
+    SELECT DISTINCT e.*
     FROM entities e
     WHERE EXISTS (
       SELECT 1
-      FROM unnest($1::float[], $2::float[]) AS coord(lat, lon)
-      WHERE (e.latitude - coord.lat)^2 + (e.longitude - coord.lon)^2 <= ($3 / 111.32)^2
+      FROM unnest($1::float[], $2::float[]) WITH ORDINALITY AS t(lat, lon, idx)
+      WHERE (
+        ((e.latitude - t.lat)::numeric)^2 + ((e.longitude - t.lon)::numeric)^2
+      ) <= ($3::numeric)^2
     );
-  `, [coordinates.map(c => c[0]), coordinates.map(c => c[1]), radius]);
+  `, [coordinates.map(c => c[0]), coordinates.map(c => c[1]), radiusInDegrees]);
 
   const end = Date.now();
   return {
@@ -46,20 +65,57 @@ async function euclideanApproach(coordinates, radius) {
     timeTaken: end - start,
     recordsFound: result.rows.length,
   };
+  
+  
 }
+async function postgisApproach(coordinates, radius) {
+  const start = Date.now();
+
+  // Convert coordinates array into GeoJSON format for a MultiPoint
+  const geoJSON = {
+    type: 'MultiPoint',
+    coordinates: coordinates.map(c => [c[1], c[0]]) // Convert [lat, lon] to [lon, lat]
+  };
+
+  // Serialize GeoJSON to string
+  const geoJSONString = JSON.stringify(geoJSON);
+
+  // Perform the query with the GeoJSON string and radius
+  const result = await pool.query(`
+    WITH params AS (
+      SELECT
+        ST_SetSRID(ST_GeomFromGeoJSON($1), 6207) AS input_multipoint,
+        $2::float AS max_distance
+    )
+    SELECT DISTINCT e.*
+    FROM entities e, params p
+    WHERE ST_DWithin(e.geom, p.input_multipoint, p.max_distance);
+  `, [geoJSONString, 20]);
+  
+
+  const end = Date.now();
+  return {
+    approach: 'postgis',
+    timeTaken: end - start,
+    recordsFound: result.rows.length,
+  };
+}
+
 
 async function haversineApproach(coordinates, radius) {
   const start = Date.now();
+
+  // Execute the query to find entities within the radius using the haversine method
   const result = await pool.query(`
-    SELECT e.*
+    SELECT DISTINCT e.*
     FROM entities e
     WHERE EXISTS (
       SELECT 1
-      FROM unnest($1::float[], $2::float[]) AS coord(lat, lon)
+      FROM unnest($1::float[], $2::float[]) WITH ORDINALITY AS t(lat, lon, idx)
       WHERE ST_DWithin(
-        e.geom,
-        ST_SetSRID(ST_MakePoint(coord.lon, coord.lat), 4326),
-        $3 / 111.32
+        e.geom, 
+        ST_SetSRID(ST_MakePoint(t.lon, t.lat), 6207), 
+        $3  -- Radius in meters
       )
     );
   `, [coordinates.map(c => c[0]), coordinates.map(c => c[1]), radius]);
@@ -71,99 +127,58 @@ async function haversineApproach(coordinates, radius) {
     recordsFound: result.rows.length,
   };
 }
-
-async function dbscanApproach(coordinates, radius, minPoints) {
-  const start = Date.now();
-  const result = await pool.query(`
-    WITH clustered_points AS (
-      SELECT id, latitude, longitude, 
-             ST_ClusterDBSCAN(geom, eps := $3 / 111.32, minpoints := $4) OVER () AS cid
-      FROM entities
+  
+  async function rTreeApproach(coordinates, radius) {
+    const start = Date.now();
+    const result = await pool.query(`
+      SELECT DISTINCT e.*
+      FROM entities e
       WHERE EXISTS (
         SELECT 1
-        FROM unnest($1::float[], $2::float[]) AS coord(lat, lon)
-        WHERE ST_DWithin(
-          geom,
-          ST_SetSRID(ST_MakePoint(coord.lon, coord.lat), 4326),
-          $3 / 111.32
+        FROM unnest($1::float[], $2::float[]) WITH ORDINALITY AS t(lat, lon, idx)
+        WHERE e.geom && ST_Expand(ST_SetSRID(ST_MakePoint(t.lon, t.lat), 6207), $3)
+        AND ST_DWithin(
+          e.geom,
+          ST_SetSRID(ST_MakePoint(t.lon, t.lat), 6207),
+          $3
         )
-      )
-    )
-    SELECT * 
-    FROM clustered_points
-    WHERE cid IS NOT NULL;
-  `, [coordinates.map(c => c[0]), coordinates.map(c => c[1]), radius, minPoints]);
-
-  const end = Date.now();
-  return {
-    approach: 'dbscan',
-    timeTaken: end - start,
-    recordsFound: result.rows.length,
-  };
-}
-
-async function knnApproach(coordinates, k) {
-  const start = Date.now();
-  const result = await pool.query(`
-    WITH knn_results AS (
-      SELECT e.id, e.latitude, e.longitude,
-             ST_Distance(e.geom, ST_SetSRID(ST_MakePoint(coord.lon, coord.lat), 4326)) AS distance,
-             ROW_NUMBER() OVER (PARTITION BY coord.lat, coord.lon ORDER BY e.geom <-> ST_SetSRID(ST_MakePoint(coord.lon, coord.lat), 4326)) as rn
+      );
+    `, [coordinates.map(c => c[0]), coordinates.map(c => c[1]), radius]);
+  
+    const end = Date.now();
+    return {
+      approach: 'r-tree',
+      timeTaken: end - start,
+      recordsFound: result.rows.length,
+    };
+  }
+  
+  async function kdTreeApproach(coordinates, radius) {
+    const start = Date.now();
+    const result = await pool.query(`
+      SELECT DISTINCT e.*
       FROM entities e
-      CROSS JOIN unnest($1::float[], $2::float[]) AS coord(lat, lon)
-    )
-    SELECT * FROM knn_results WHERE rn <= $3;
-  `, [coordinates.map(c => c[0]), coordinates.map(c => c[1]), k]);
+      WHERE EXISTS (
+        SELECT 1
+        FROM unnest($1::float[], $2::float[]) WITH ORDINALITY AS t(lat, lon, idx)
+        WHERE ST_DWithin(
+          e.geom,
+          ST_SetSRID(ST_MakePoint(t.lon, t.lat), 6207),
+          $3
+        )
+      );
+    `, [coordinates.map(c => c[0]), coordinates.map(c => c[1]), radius]);
+  
+    const end = Date.now();
+    return {
+      approach: 'kd-tree',
+      timeTaken: end - start,
+      recordsFound: result.rows.length,
+    };
+  }
+  
 
-  const end = Date.now();
-  return {
-    approach: 'knn',
-    timeTaken: end - start,
-    recordsFound: result.rows.length,
-  };
-}
-
-async function rTreeApproach(coordinates, radius) {
-  const start = Date.now();
-  const result = await pool.query(`
-    SELECT e.*
-    FROM entities e
-    WHERE EXISTS (
-      SELECT 1
-      FROM unnest($1::float[], $2::float[]) AS coord(lat, lon)
-      WHERE e.geom && ST_Expand(ST_SetSRID(ST_MakePoint(coord.lon, coord.lat), 4326), $3 / 111.32)
-    );
-  `, [coordinates.map(c => c[0]), coordinates.map(c => c[1]), radius]);
-
-  const end = Date.now();
-  return {
-    approach: 'r-tree',
-    timeTaken: end - start,
-    recordsFound: result.rows.length,
-  };
-}
-
-async function kdTreeApproach(coordinates, radius) {
-  const start = Date.now();
-  const result = await pool.query(`
-    SELECT e.*
-    FROM entities e
-    WHERE EXISTS (
-      SELECT 1
-      FROM unnest($1::float[], $2::float[]) AS coord(lat, lon)
-      WHERE ST_DWithin(e.geom, ST_SetSRID(ST_MakePoint(coord.lon, coord.lat), 4326), $3 / 111.32)
-    );
-  `, [coordinates.map(c => c[0]), coordinates.map(c => c[1]), radius]);
-
-  const end = Date.now();
-  return {
-    approach: 'kd-tree',
-    timeTaken: end - start,
-    recordsFound: result.rows.length,
-  };
-}
-
-async function runComparison(coordinates, radius, k, minPoints, volumes) {
+async function runComparison(coordinates, distanceRangeInMeteres, k, minPoints, volumes) {
   const results = {};
   
   for (const volume of volumes) {
@@ -177,14 +192,18 @@ async function runComparison(coordinates, radius, k, minPoints, volumes) {
       FROM generate_series(1, $1);
     `, [volume]);
 
+     // Log the first 5 rows
+     const first5Rows = await pool.query('SELECT * FROM entities LIMIT 5;');
+     console.log('First 5 rows:', first5Rows.rows);
+ 
+
     const approaches = [
-      { name: 'geohash', fn: geohashApproach, args: [coordinates] },
-      { name: 'euclidean', fn: euclideanApproach, args: [coordinates, radius] },
-      { name: 'haversine', fn: haversineApproach, args: [coordinates, radius] },
-      // { name: 'dbscan', fn: dbscanApproach, args: [coordinates, radius, minPoints] },
-      // { name: 'knn', fn: knnApproach, args: [coordinates, k] },
-      { name: 'r-tree', fn: rTreeApproach, args: [coordinates, radius] },
-      { name: 'kd-tree', fn: kdTreeApproach, args: [coordinates, radius] }
+      { name: 'geohash', fn: geohashApproach, args: [coordinates, distanceRangeInMeteres] },
+      // { name: 'euclidean', fn: euclideanApproach, args: [coordinates, distanceRangeInMeteres] },
+      { name: 'postgres', fn: postgisApproach, args: [coordinates, distanceRangeInMeteres] },
+      // { name: 'haversine', fn: haversineApproach, args: [coordinates, distanceRangeInMeteres] },
+      // { name: 'r-tree', fn: rTreeApproach, args: [coordinates, distanceRangeInMeteres] },
+      // { name: 'kd-tree', fn: kdTreeApproach, args: [coordinates, distanceRangeInMeteres] }
     ];
 
     for (const approach of approaches) {

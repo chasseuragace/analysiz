@@ -1,44 +1,22 @@
 Comparison Results:
 
-Volume: 10000 records
-  geohash   : 86ms, 5541 records found
-  euclidean : 20ms, 10000 records found
-  haversine : 200ms, 10000 records found
-  r-tree    : 81ms, 10000 records found
-  kd-tree   : 73ms, 10000 records found
+Point Size: 1, Volume: 100000 records, Radius: 5000 meters
+  geohash   : 125ms, 183 records found
+  postgres  : 692ms, 100000 records found
 
-Volume: 50000 records
-  geohash   : 384ms, 28261 records found
-  euclidean : 82ms, 50000 records found
-  haversine : 130ms, 50000 records found
-  r-tree    : 142ms, 50000 records found
-  kd-tree   : 135ms, 50000 records found
+Point Size: 5, Volume: 100000 records, Radius: 5000 meters
+  geohash   : 333ms, 900 records found
+  postgres  : 894ms, 100000 records found
 
-Volume: 100000 records
-  geohash   : 522ms, 56363 records found
-  euclidean : 631ms, 100000 records found
-  haversine : 603ms, 100000 records found
-  r-tree    : 580ms, 100000 records found
-  kd-tree   : 601ms, 100000 records found
+Point Size: 20, Volume: 100000 records, Radius: 5000 meters
+  geohash   : 667ms, 3588 records found
+  postgres  : 619ms, 100000 records found
 
-Volume: 200000 records
-  geohash   : 884ms, 113262 records found
-  euclidean : 626ms, 200000 records found
-  haversine : 592ms, 200000 records found
-  r-tree    : 590ms, 200000 records found
-  kd-tree   : 571ms, 200000 records found
+Point Size: 50, Volume: 100000 records, Radius: 5000 meters
+  geohash   : 682ms, 8440 records found
+  postgres  : 649ms, 100000 records found
 
-Volume: 500000 records
-  geohash   : 1557ms, 282967 records found
-  euclidean : 728ms, 500000 records found
-  haversine : 679ms, 500000 records found
-  r-tree    : 729ms, 500000 records found
-  kd-tree   : 668ms, 500000 records found
-
-Volume: 1000000 records
-  geohash   : 8200ms, 566601 records found
-  euclidean : 1520ms, 1000000 records found
-  haversine : 1093ms, 1000000 records found
-  r-tree    : 1278ms, 1000000 records found
-  kd-tree   : 1163ms, 1000000 records found
+Point Size: 100, Volume: 100000 records, Radius: 5000 meters
+  geohash   : 739ms, 16544 records found
+  postgres  : 767ms, 100000 records found
 
