@@ -15,38 +15,37 @@ async function main() {
     200_000,   // Larger scale
     500_000,   // Big data
     1_000_000, // Very large scale
-    2_000_000, // Larger than typical use cases
-    5_000_000  // Extremely large scale
+    // 2_000_000, // Larger than typical use cases
+    // 5_000_000  // Extremely large scale
   ];
-  
 
-// Generate 200 random coordinates
-const coordinates = generateRandomCoordinates(5500);
- 
+  // Generate 200 random coordinates
+  const coordinates = generateRandomCoordinates(500);
 
+  console.log("Waiting 5 seconds to let the database initialize...");
 
-  try {
-    const results = await runComparison(coordinates, radius, k, minPoints, volumes);
-    const outputPath = path.join('/usr/src/app/out', 'output.txt');
-    
-    let output = 'Comparison Results:\n\n';
-    for (const [volume, approaches] of Object.entries(results)) {
-      output += `Volume: ${volume} records\n`;
-      for (const [approach, data] of Object.entries(approaches)) {
-        output += `  ${approach.padEnd(10)}: ${data.timeTaken}ms, ${data.recordsFound} records found\n`;
+  // Wait 5 seconds for the database to initialize
+  setTimeout(async () => {
+    try {
+      const results = await runComparison(coordinates, radius, k, minPoints, volumes);
+      const outputPath = path.join('/usr/src/app/out', 'output.txt');
+      
+      let output = 'Comparison Results:\n\n';
+      for (const [volume, approaches] of Object.entries(results)) {
+        output += `Volume: ${volume} records\n`;
+        for (const [approach, data] of Object.entries(approaches)) {
+          output += `  ${approach.padEnd(10)}: ${data.timeTaken}ms, ${data.recordsFound} records found\n`;
+        }
+        output += '\n';
       }
-      output += '\n';
+
+      fs.writeFileSync(outputPath, output);
+      console.log(`Results written to ${outputPath}`);
+    } catch (error) {
+      console.error('Error running comparison:', error);
     }
-
-    fs.writeFileSync(outputPath, output);
-    console.log(`Results written to ${outputPath}`);
-  } catch (error) {
-    console.error('Error running comparison:', error);
-  }
+  }, 5000); // Wait for 5000 milliseconds (5 seconds)
 }
-
-main();
-
 
 // Function to generate random coordinates within Nepal's boundary
 function generateRandomCoordinates(numPoints) {
@@ -66,4 +65,4 @@ function generateRandomCoordinates(numPoints) {
   return coordinates;
 }
 
-
+main();

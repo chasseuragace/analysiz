@@ -39,6 +39,8 @@ CREATE INDEX idx_entities_lat ON entities (latitude);
 CREATE INDEX idx_entities_lon ON entities (longitude);
 CREATE INDEX idx_entities_lat_lon ON entities (latitude, longitude);
 CREATE INDEX idx_entities_geohash ON entities (geohash);
+CREATE INDEX idx_entities_geohash_prefix ON entities (LEFT(geohash, 4));
+
 
 -- Function to generate random coordinates within Bihar
 CREATE OR REPLACE FUNCTION random_bihar_coordinate()

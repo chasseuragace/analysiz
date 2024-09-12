@@ -1,77 +1,45 @@
 const { Pool } = require('pg');
-// Geohash approach with detailed logging for testing
-const geohash = require('ngeohash'); // Ensure the geohash package is installed
+const geohash = require('ngeohash');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-});// Geohash approach
+});
 
-// Geohash approach with precision 4, using ILIKE with ANY
 async function geohashApproach(coordinates) {
-  // console.log('Geohash Approach Start:');
-  // console.log('Coordinates:', coordinates);
-
   const start = Date.now();
-
-  // Step 1: Convert coordinates to geohashes with precision 4
   const givenHashes = coordinates.map(([lat, lon]) => geohash.encode(lat, lon, 4));
-  // console.log('Generated Geohashes (Precision 4):', givenHashes);
-
-  // Step 2: Construct the SQL query using a lateral join
   const query = `
     SELECT e.*
     FROM entities e
-    JOIN LATERAL (
-      SELECT pattern
-      FROM unnest($1::text[]) AS pattern
-      WHERE e.geohash ILIKE pattern || '%'
-    ) AS matched
-    ON true;
+    WHERE LEFT(e.geohash, 4) = ANY($1::text[]);
   `;
 
   try {
-    // Execute the query with the geohash prefixes
     const result = await pool.query(query, [givenHashes]);
-
-    // Debug: Print number of records found and sample of results
-    // console.log('Query completed successfully.');
-    // console.log('Records found:', result.rows.length);
-    // console.log('Result rows (first 5):', result.rows.slice(0, 5));
-
     const end = Date.now();
-
     return {
       approach: 'geohash',
       timeTaken: end - start,
       recordsFound: result.rows.length,
     };
   } catch (error) {
-    // Log the error if the query fails
     console.error('Error executing geohash approach query:', error);
     throw error;
   }
 }
 
-
-
-
-
-// Euclidean approach
 async function euclideanApproach(coordinates, radius) {
   const start = Date.now();
-  const placeholders = coordinates.map((_, index) => `($${index * 2 + 1}, $${index * 2 + 2})`).join(',');
-  const flatCoordinates = coordinates.flat();
-  
   const result = await pool.query(`
-    WITH input_points AS (
-      SELECT unnest($1::float[]) as lat, unnest($2::float[]) as lon
-    )
-    SELECT e.* FROM entities e
-    JOIN input_points ip ON (
-      (e.latitude - ip.lat)^2 + (e.longitude - ip.lon)^2 <= ($3 / 111320)^2
+    SELECT e.*
+    FROM entities e
+    WHERE EXISTS (
+      SELECT 1
+      FROM unnest($1::float[], $2::float[]) AS coord(lat, lon)
+      WHERE (e.latitude - coord.lat)^2 + (e.longitude - coord.lon)^2 <= ($3 / 111.32)^2
     );
   `, [coordinates.map(c => c[0]), coordinates.map(c => c[1]), radius]);
-  
+
   const end = Date.now();
   return {
     approach: 'euclidean',
@@ -80,26 +48,22 @@ async function euclideanApproach(coordinates, radius) {
   };
 }
 
-// Haversine approach
 async function haversineApproach(coordinates, radius) {
   const start = Date.now();
-  const placeholders = coordinates.map((_, index) => `($${index * 2 + 1}, $${index * 2 + 2})`).join(',');
-  const flatCoordinates = coordinates.flat();
-  
   const result = await pool.query(`
-    WITH input_points AS (
-      SELECT unnest($1::float[]) as lat, unnest($2::float[]) as lon
-    )
-    SELECT e.* FROM entities e
-    JOIN input_points ip ON (
-      ST_DWithin(
+    SELECT e.*
+    FROM entities e
+    WHERE EXISTS (
+      SELECT 1
+      FROM unnest($1::float[], $2::float[]) AS coord(lat, lon)
+      WHERE ST_DWithin(
         e.geom,
-        ST_SetSRID(ST_MakePoint(ip.lon, ip.lat), 4326),
-        $3
+        ST_SetSRID(ST_MakePoint(coord.lon, coord.lat), 4326),
+        $3 / 111.32
       )
     );
   `, [coordinates.map(c => c[0]), coordinates.map(c => c[1]), radius]);
-  
+
   const end = Date.now();
   return {
     approach: 'haversine',
@@ -108,34 +72,28 @@ async function haversineApproach(coordinates, radius) {
   };
 }
 
-// DBSCAN approach
 async function dbscanApproach(coordinates, radius, minPoints) {
   const start = Date.now();
-  const placeholders = coordinates.map((_, index) => `($${index * 2 + 1}, $${index * 2 + 2})`).join(',');
-  const flatCoordinates = coordinates.flat();
-  
   const result = await pool.query(`
-    WITH input_points AS (
-      SELECT unnest($1::float[]) as lat, unnest($2::float[]) as lon
-    ),
-    nearby_points AS (
-      SELECT e.* FROM entities e
-      JOIN input_points ip ON (
-        ST_DWithin(
-          e.geom,
-          ST_SetSRID(ST_MakePoint(ip.lon, ip.lat), 4326),
-          $3
+    WITH clustered_points AS (
+      SELECT id, latitude, longitude, 
+             ST_ClusterDBSCAN(geom, eps := $3 / 111.32, minpoints := $4) OVER () AS cid
+      FROM entities
+      WHERE EXISTS (
+        SELECT 1
+        FROM unnest($1::float[], $2::float[]) AS coord(lat, lon)
+        WHERE ST_DWithin(
+          geom,
+          ST_SetSRID(ST_MakePoint(coord.lon, coord.lat), 4326),
+          $3 / 111.32
         )
       )
-    ),
-    clusters AS (
-      SELECT ST_ClusterDBSCAN(geom, eps := $3, minpoints := $4) over () AS cid,
-             id, latitude, longitude
-      FROM nearby_points
     )
-    SELECT * FROM clusters WHERE cid IS NOT NULL;
+    SELECT * 
+    FROM clustered_points
+    WHERE cid IS NOT NULL;
   `, [coordinates.map(c => c[0]), coordinates.map(c => c[1]), radius, minPoints]);
-  
+
   const end = Date.now();
   return {
     approach: 'dbscan',
@@ -144,26 +102,19 @@ async function dbscanApproach(coordinates, radius, minPoints) {
   };
 }
 
-// KNN approach
 async function knnApproach(coordinates, k) {
   const start = Date.now();
-  const placeholders = coordinates.map((_, index) => `($${index * 2 + 1}, $${index * 2 + 2})`).join(',');
-  const flatCoordinates = coordinates.flat();
-  
   const result = await pool.query(`
-    WITH input_points AS (
-      SELECT unnest($1::float[]) as lat, unnest($2::float[]) as lon
-    ),
-    knn_results AS (
+    WITH knn_results AS (
       SELECT e.id, e.latitude, e.longitude,
-             ST_Distance(e.geom, ST_SetSRID(ST_MakePoint(ip.lon, ip.lat), 4326)) AS distance,
-             ROW_NUMBER() OVER (PARTITION BY ip.lat, ip.lon ORDER BY e.geom <-> ST_SetSRID(ST_MakePoint(ip.lon, ip.lat), 4326)) as rn
+             ST_Distance(e.geom, ST_SetSRID(ST_MakePoint(coord.lon, coord.lat), 4326)) AS distance,
+             ROW_NUMBER() OVER (PARTITION BY coord.lat, coord.lon ORDER BY e.geom <-> ST_SetSRID(ST_MakePoint(coord.lon, coord.lat), 4326)) as rn
       FROM entities e
-      CROSS JOIN input_points ip
+      CROSS JOIN unnest($1::float[], $2::float[]) AS coord(lat, lon)
     )
     SELECT * FROM knn_results WHERE rn <= $3;
   `, [coordinates.map(c => c[0]), coordinates.map(c => c[1]), k]);
-  
+
   const end = Date.now();
   return {
     approach: 'knn',
@@ -172,43 +123,85 @@ async function knnApproach(coordinates, k) {
   };
 }
 
-// Updated function to run all approaches and compare results
+async function rTreeApproach(coordinates, radius) {
+  const start = Date.now();
+  const result = await pool.query(`
+    SELECT e.*
+    FROM entities e
+    WHERE EXISTS (
+      SELECT 1
+      FROM unnest($1::float[], $2::float[]) AS coord(lat, lon)
+      WHERE e.geom && ST_Expand(ST_SetSRID(ST_MakePoint(coord.lon, coord.lat), 4326), $3 / 111.32)
+    );
+  `, [coordinates.map(c => c[0]), coordinates.map(c => c[1]), radius]);
+
+  const end = Date.now();
+  return {
+    approach: 'r-tree',
+    timeTaken: end - start,
+    recordsFound: result.rows.length,
+  };
+}
+
+async function kdTreeApproach(coordinates, radius) {
+  const start = Date.now();
+  const result = await pool.query(`
+    SELECT e.*
+    FROM entities e
+    WHERE EXISTS (
+      SELECT 1
+      FROM unnest($1::float[], $2::float[]) AS coord(lat, lon)
+      WHERE ST_DWithin(e.geom, ST_SetSRID(ST_MakePoint(coord.lon, coord.lat), 4326), $3 / 111.32)
+    );
+  `, [coordinates.map(c => c[0]), coordinates.map(c => c[1]), radius]);
+
+  const end = Date.now();
+  return {
+    approach: 'kd-tree',
+    timeTaken: end - start,
+    recordsFound: result.rows.length,
+  };
+}
+
 async function runComparison(coordinates, radius, k, minPoints, volumes) {
   const results = {};
-  if (!Array.isArray(volumes)) {
-    throw new TypeError("volumes must be an array");
-  }  console.log('Volumes:', volumes);  // Logging to ensure it's correct
+  
   for (const volume of volumes) {
+    console.log(`\n=== Running comparison for volume: ${volume} ===`);
     results[volume] = {};
-    
-    // Truncate the table and repopulate with the specified volume of random data
+
     await pool.query('TRUNCATE TABLE entities;');
     await pool.query(`
       INSERT INTO entities (latitude, longitude)
-      SELECT * FROM random_bihar_coordinate()
-      LIMIT $1;
+      SELECT (random_bihar_coordinate()).lat, (random_bihar_coordinate()).lon
+      FROM generate_series(1, $1);
     `, [volume]);
-    
-    // Fetch the first 10 data points after insertion
-    // Fetch and print the total count of data points in the entities table
-    const { rows: dataCount } = await pool.query(`
-      SELECT COUNT(*) as total
-      FROM entities;
-    `);
-    
-    
-    results[volume]['geohash'] = await geohashApproach(coordinates, radius);
-    results[volume]['euclidean'] = await euclideanApproach(coordinates, radius);
-    results[volume]['haversine'] = await haversineApproach(coordinates, radius);
-    results[volume]['dbscan'] = await dbscanApproach(coordinates, radius, minPoints);
-    results[volume]['knn'] = await knnApproach(coordinates, k);
+
+    const approaches = [
+      { name: 'geohash', fn: geohashApproach, args: [coordinates] },
+      { name: 'euclidean', fn: euclideanApproach, args: [coordinates, radius] },
+      { name: 'haversine', fn: haversineApproach, args: [coordinates, radius] },
+      // { name: 'dbscan', fn: dbscanApproach, args: [coordinates, radius, minPoints] },
+      // { name: 'knn', fn: knnApproach, args: [coordinates, k] },
+      { name: 'r-tree', fn: rTreeApproach, args: [coordinates, radius] },
+      { name: 'kd-tree', fn: kdTreeApproach, args: [coordinates, radius] }
+    ];
+
+    for (const approach of approaches) {
+      console.log(`Running ${approach.name} approach...`);
+      try {
+        results[volume][approach.name] = await approach.fn(...approach.args);
+        console.log(`${approach.name} - Time Taken: ${results[volume][approach.name].timeTaken} ms, Records Found: ${results[volume][approach.name].recordsFound}`);
+      } catch (error) {
+        console.error(`Error in ${approach.name} approach:`, error);
+        results[volume][approach.name] = { error: error.message };
+      }
+    }
   }
-  
+
   return results;
 }
 
 module.exports = {
   runComparison,
 };
-
-

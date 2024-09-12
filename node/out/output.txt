@@ -1,58 +1,44 @@
 Comparison Results:
 
 Volume: 10000 records
-  geohash   : 30ms, 7 records found
-  euclidean : 132ms, 0 records found
-  haversine : 81ms, 5500 records found
-  dbscan    : 565ms, 5500 records found
-  knn       : 276ms, 5500 records found
+  geohash   : 86ms, 5541 records found
+  euclidean : 20ms, 10000 records found
+  haversine : 200ms, 10000 records found
+  r-tree    : 81ms, 10000 records found
+  kd-tree   : 73ms, 10000 records found
 
 Volume: 50000 records
-  geohash   : 17ms, 9 records found
-  euclidean : 31ms, 0 records found
-  haversine : 52ms, 5500 records found
-  dbscan    : 592ms, 5500 records found
-  knn       : 178ms, 5500 records found
+  geohash   : 384ms, 28261 records found
+  euclidean : 82ms, 50000 records found
+  haversine : 130ms, 50000 records found
+  r-tree    : 142ms, 50000 records found
+  kd-tree   : 135ms, 50000 records found
 
 Volume: 100000 records
-  geohash   : 9ms, 0 records found
-  euclidean : 36ms, 0 records found
-  haversine : 42ms, 5500 records found
-  dbscan    : 525ms, 5500 records found
-  knn       : 230ms, 5500 records found
+  geohash   : 522ms, 56363 records found
+  euclidean : 631ms, 100000 records found
+  haversine : 603ms, 100000 records found
+  r-tree    : 580ms, 100000 records found
+  kd-tree   : 601ms, 100000 records found
 
 Volume: 200000 records
-  geohash   : 12ms, 0 records found
-  euclidean : 24ms, 0 records found
-  haversine : 59ms, 5500 records found
-  dbscan    : 543ms, 5500 records found
-  knn       : 181ms, 5500 records found
+  geohash   : 884ms, 113262 records found
+  euclidean : 626ms, 200000 records found
+  haversine : 592ms, 200000 records found
+  r-tree    : 590ms, 200000 records found
+  kd-tree   : 571ms, 200000 records found
 
 Volume: 500000 records
-  geohash   : 9ms, 12 records found
-  euclidean : 25ms, 0 records found
-  haversine : 48ms, 5500 records found
-  dbscan    : 569ms, 5500 records found
-  knn       : 171ms, 5500 records found
+  geohash   : 1557ms, 282967 records found
+  euclidean : 728ms, 500000 records found
+  haversine : 679ms, 500000 records found
+  r-tree    : 729ms, 500000 records found
+  kd-tree   : 668ms, 500000 records found
 
 Volume: 1000000 records
-  geohash   : 9ms, 9 records found
-  euclidean : 26ms, 0 records found
-  haversine : 38ms, 5500 records found
-  dbscan    : 514ms, 5500 records found
-  knn       : 181ms, 5500 records found
-
-Volume: 2000000 records
-  geohash   : 11ms, 14 records found
-  euclidean : 26ms, 0 records found
-  haversine : 41ms, 5500 records found
-  dbscan    : 552ms, 5500 records found
-  knn       : 212ms, 5500 records found
-
-Volume: 5000000 records
-  geohash   : 9ms, 8 records found
-  euclidean : 26ms, 0 records found
-  haversine : 48ms, 5500 records found
-  dbscan    : 546ms, 5500 records found
-  knn       : 191ms, 5500 records found
+  geohash   : 8200ms, 566601 records found
+  euclidean : 1520ms, 1000000 records found
+  haversine : 1093ms, 1000000 records found
+  r-tree    : 1278ms, 1000000 records found
+  kd-tree   : 1163ms, 1000000 records found
 
