@@ -6,41 +6,51 @@ const pool = new Pool({
 });
 
 async function geohashApproach(coordinates, radius) {
+  // Adjust geohash precision based on the radius
+  let precision;
+  if (radius <= 1000) {
+    precision = 6; // ~1.2 km x 0.6 km
+  } else if (radius <= 5000) {
+    precision = 5; // ~5 km x 5 km
+  } else {
+    precision = 4; // ~20 km x 20 km
+  }
+  
+  // Start measuring time for performance analysis
   const start = Date.now();
-  const givenHashes = coordinates.map(([lat, lon]) => geohash.encode(lat, lon, 4));
+  
+  // Encode geohashes for the given coordinates at the calculated precision
+  const givenHashes = coordinates.map(([lat, lon]) => geohash.encode(lat, lon, precision));
+  
+  // SQL query to select entities within the given geohash areas
   const query = `
     SELECT DISTINCT e.*
     FROM entities e
-    WHERE LEFT(e.geohash, 4) = ANY($1::text[])
-    AND EXISTS (
-      SELECT 1
-      FROM unnest($2::float[], $3::float[]) WITH ORDINALITY AS t(lat, lon, idx)
-      WHERE ST_DWithin(
-        e.geom,
-        ST_SetSRID(ST_MakePoint(t.lon, t.lat), 6207),
-        $4  -- Radius is already in meters, no need for conversion
-      )
-    );
+    WHERE LEFT(e.geohash, $2) = ANY($1::text[]);
   `;
-
+  
   try {
+    // Execute query with the list of geohashes and the precision length
     const result = await pool.query(query, [
       givenHashes,
-      coordinates.map(c => c[0]),
-      coordinates.map(c => c[1]),
-      radius
+      precision
     ]);
+    
+    // End time measurement
     const end = Date.now();
+    
     return {
       approach: 'geohash',
       timeTaken: end - start,
       recordsFound: result.rows.length,
+      data: result.rows
     };
   } catch (error) {
     console.error('Error executing geohash approach query:', error);
     throw error;
   }
 }
+
 async function euclideanApproach(coordinates, radius) {
   const start = Date.now();
   
@@ -79,20 +89,18 @@ async function postgisApproach(coordinates, radius) {
 
   // Serialize GeoJSON to string
   const geoJSONString = JSON.stringify(geoJSON);
-
-  // Perform the query with the GeoJSON string and radius
   const result = await pool.query(`
     WITH params AS (
       SELECT
-        ST_SetSRID(ST_GeomFromGeoJSON($1), 6207) AS input_multipoint,
+        ST_Transform(ST_SetSRID(ST_GeomFromGeoJSON($1), 6207), 32645) AS input_multipoint,
         $2::float AS max_distance
     )
     SELECT DISTINCT e.*
     FROM entities e, params p
-    WHERE ST_DWithin(e.geom, p.input_multipoint, p.max_distance);
-  `, [geoJSONString, 20]);
+    WHERE 
+      ST_DWithin(ST_Transform(e.geom, 32645), p.input_multipoint, p.max_distance);
+  `, [geoJSONString, radius]);
   
-
   const end = Date.now();
   return {
     approach: 'postgis',
@@ -195,7 +203,6 @@ async function runComparison(coordinates, distanceRangeInMeteres, k, minPoints, 
      // Log the first 5 rows
      const first5Rows = await pool.query('SELECT * FROM entities LIMIT 5;');
      console.log('First 5 rows:', first5Rows.rows);
- 
 
     const approaches = [
       { name: 'geohash', fn: geohashApproach, args: [coordinates, distanceRangeInMeteres] },

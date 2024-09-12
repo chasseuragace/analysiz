@@ -23,7 +23,7 @@ CREATE OR REPLACE FUNCTION update_geom_and_geohash()
 RETURNS TRIGGER AS $$
 BEGIN
     NEW.geom = ST_SetSRID(ST_MakePoint(NEW.longitude, NEW.latitude), 6207);
-    NEW.geohash = generate_geohash(NEW.latitude, NEW.longitude, 8);
+    NEW.geohash = generate_geohash(NEW.latitude, NEW.longitude, 12);
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;

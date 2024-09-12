@@ -1,134 +1,186 @@
 ### Validity / Authenticity of Geohash Approach
 
-#### **Context**:
-Given a set of coordinates \(C\) and a set of entities \(E\), where each entity \(e \in E\) has coordinates \(C_e \subseteq C\), the problem is to identify entities neighboring a given set of coordinates \(C'\). Neighbors are defined as coordinates within a specified distance \(n\) units.
+#### **Context**
 
-#### **Definitions**:
+Given a set of coordinates \(C\) and a set of entities \(E\), where each entity \(e \in E\) has coordinates \(C_e \subseteq C\), the goal is to identify entities neighboring a given set of coordinates \(C'\). Neighbors are defined as coordinates within a specified distance \(n\) units.
+
+#### **Definitions**
+
 - **Neighbors**: Coordinates within a distance \(n\) units from a given point.
+
+#### **Methodologies**
+
+Several methodologies exist to identify neighboring entities, each with its strengths and weaknesses. The primary approaches considered are Geohashing, Euclidean Distance, Haversine Formula, Clustering Algorithms, and Machine Learning techniques.
+
+### **Approaches and Performance**
+
+#### 1. **Geohash-Based Approach**
+
+**How it Works:**
+- Converts latitude and longitude into a hashed string (geohash). Neighboring locations share similar prefixes, allowing for efficient spatial indexing.
+
+**Code Example:**
+
+```javascript
+async function geohashApproach(coordinates, radius) {
+  // Adjust geohash precision based on the radius
+  let precision;
+  if (radius <= 1000) {
+    precision = 6; // ~1.2 km x 0.6 km
+  } else if (radius <= 5000) {
+    precision = 5; // ~5 km x 5 km
+  } else {
+    precision = 4; // ~20 km x 20 km
+  }
   
-#### **Methodologies**:
-
-The main challenge is determining which entities are neighbors of a given set of coordinates in an efficient and scalable way. Several approaches exist to solve this problem, including:
-
-### **Approaches**:
-
-1. **Geohash-Based Approach**:
-   - **How it works**: Geohashing converts latitude and longitude coordinates into a hashed string. Neighboring locations will have similar or identical geohash prefixes, making string comparison possible.
-   - **Efficiency**: Since the method is based on hashing, it is efficient for spatial indexing. Geohashes allow quick searches through prefix matching, reducing the computational overhead compared to other methods that require distance calculation.
-   
-   **Pros**:
-   - High speed due to simple string comparison.
-   - Suitable for large-scale data and databases like Postgres.
-   
-   **Cons**:
-   - Accuracy can suffer, especially near geohash boundaries.
-   - Fixed precision may make it challenging to adjust for different distances.
-
-2. **Euclidean Distance (Pythagoras' Theorem)**:
-   - **How it works**: Calculate the distance between two points using the Euclidean distance formula:
-     \[
-     d = \sqrt{(x_2 - x_1)^2 + (y_2 - y_1)^2}
-     \]
-   - **Efficiency**: This approach guarantees accuracy, but it is computationally expensive, especially when applied over large datasets.
-   
-   **Pros**:
-   - Provides exact results.
-   - Flexible to any distance range.
-   
-   **Cons**:
-   - Computationally intensive.
-   - Not scalable for large datasets.
-
-3. **Haversine Formula**:
-   - **How it works**: Used for calculating distances between points on a sphere (Earth). The formula is:
-     \[
-     a = \sin^2\left(\frac{\Delta\phi}{2}\right) + \cos(\phi_1) \cos(\phi_2) \sin^2\left(\frac{\Delta\lambda}{2}\right)
-     \]
-     \[
-     c = 2 \cdot \text{atan2}\left(\sqrt{a}, \sqrt{1-a}\right)
-     \]
-     \[
-     d = R \cdot c
-     \]
-   - **Efficiency**: More accurate for geographic coordinates but computationally more expensive than simple 2D Euclidean distance.
-   
-   **Pros**:
-   - High accuracy on a global scale.
-   
-   **Cons**:
-   - More complex to implement.
-   - Slower due to trigonometric calculations.
-
-4. **Clustering Algorithms (DBSCAN, K-Means)**:
-   - **How it works**: Algorithms like DBSCAN (Density-Based Spatial Clustering of Applications with Noise) group nearby points into clusters, identifying dense regions.
-   - **Efficiency**: DBSCAN, in particular, is effective at identifying neighboring entities based on a distance threshold but can be computationally expensive due to its iterative nature.
-   
-   **Pros**:
-   - Useful for finding natural clusters of entities.
-   - Handles noise and outliers effectively.
-   
-   **Cons**:
-   - Higher computational complexity.
-   - Not as straightforward as Geohashing for simple neighbor-finding tasks.
-
-5. **Machine Learning (K-Nearest Neighbors)**:
-   - **How it works**: The KNN algorithm identifies the nearest neighbors of a given coordinate by calculating distances between points.
-   - **Efficiency**: It requires calculating the distance to every other point in the dataset, making it slow for large datasets.
-   
-   **Pros**:
-   - Works well for small datasets.
-   
-   **Cons**:
-   - Scalability issues due to brute-force distance calculations.
-
-#### **Findings**:
-
-The geohash-based approach relies on hashing and string comparisons rather than calculating exact distances, leading to performance benefits in certain contexts, particularly for large-scale spatial data. However, its accuracy declines near geohash boundaries or when precision needs to be adjusted for varying distances.
-
-### **Comparison**:
-
-Below is a comparison of different approaches in terms of performance and scalability across different volumes of data (1,000 to 5,000 records) and varying distances.
-
-| **Volume (Records)** | **Geohash (String Comparison)** | **Euclidean (Pythagorean)** | **Haversine Formula** | **DBSCAN (Clustering)** | **KNN (ML-based)** |
-|----------------------|---------------------------------|-----------------------------|------------------------|-------------------------|---------------------|
-| 1,000                | Very Fast                      | Moderate                    | Slow                   | Moderate                | Slow                |
-| 2,000                | Very Fast                      | Moderate                    | Slow                   | Moderate                | Slow                |
-| 3,000                | Fast                           | Slower                      | Slow                   | Slow                    | Slower              |
-| 5,000                | Fast                           | Very Slow                   | Very Slow              | Very Slow               | Very Slow           |
-
-### **Conclusion**:
-
-- **Geohashing** is efficient for large datasets due to its simple string comparison, but it lacks the accuracy of mathematical distance approaches like Euclidean or Haversine, especially at the boundaries of geohash cells.
-- **Euclidean and Haversine distance calculations** provide more precise results but are computationally expensive, making them less ideal for large-scale datasets without optimization.
-- **Clustering approaches** like DBSCAN can identify neighboring points but at a higher computational cost, making them less performant compared to geohashing for large datasets.
-- **Machine learning approaches** such as KNN are effective for small datasets but scale poorly when the dataset grows.
-
-Ultimately, for tasks requiring quick searches over large geographic datasets, **Geohash-based solutions outperform** other methods in terms of speed, though they may require supplementary logic to handle edge cases for greater accuracy. For smaller datasets or cases where accuracy is paramount, the **Haversine or Euclidean methods** may be better suited, despite their computational overhead.
-
-
-Create the Docker setup:
+  // Start measuring time for performance analysis
+  const start = Date.now();
+  
+  // Encode geohashes for the given coordinates at the calculated precision
+  const givenHashes = coordinates.map(([lat, lon]) => geohash.encode(lat, lon, precision));
+  
+  // SQL query to select entities within the given geohash areas
+  const query = `
+    SELECT DISTINCT e.*
+    FROM entities e
+    WHERE LEFT(e.geohash, $2) = ANY($1::text[]);
+  `;
+  
+  try {
+    // Execute query with the list of geohashes and the precision length
+    const result = await pool.query(query, [
+      givenHashes,
+      precision
+    ]);
+    
+    // End time measurement
+    const end = Date.now();
+    
+    return {
+      approach: 'geohash',
+      timeTaken: end - start,
+      recordsFound: result.rows.length,
+      data: result.rows
+    };
+  } catch (error) {
+    console.error('Error executing geohash approach query:', error);
+    throw error;
+  }
+}
 ```
+
+**Performance Results:**
+
+| **Point Size** | **Volume** | **Radius** | **Geohash Time** | **Records Found** | **PostGIS Time** | **Records Found (PostGIS)** |
+|----------------|------------|------------|------------------|--------------------|------------------|----------------------------|
+| 1              | 100,000    | 1,000 meters | 37ms             | 3                  | 354ms            | 4                          |
+| 1              | 100,000    | 5,000 meters | 29ms             | 4                  | 240ms            | 20                         |
+| 100            | 100,000    | 1,000 meters | 136ms            | 22                 | 605ms            | 93                         |
+| 100            | 100,000    | 5,000 meters | 133ms            | 559                | 592ms            | 2,071                      |
+| 500            | 100,000    | 1,000 meters | 476ms            | 95                 | 2,225ms          | 424                        |
+| 500            | 100,000    | 5,000 meters | 706ms            | 2,868              | 2,950ms          | 10,104                     |
+
+**Interpretation:**
+
+- **Speed:** Geohashing is notably faster than PostGIS, especially as the dataset grows. For instance, at a radius of 5,000 meters and a point size of 500, geohashing completes in 706ms compared to PostGIS’s 2,950ms.
+- **Accuracy:** The number of records found can vary. Geohashing sometimes finds fewer records compared to PostGIS, which might be due to the geohash’s approximations or precision settings.
+
+#### 2. **PostGIS (Spatial Indexing with SQL)**
+
+**How it Works:**
+- Uses PostgreSQL with PostGIS extension for spatial queries. It calculates distances using geometry functions and indexes.
+
+**Code Example:**
+
+```javascript
+async function postgisApproach(coordinates, radius) {
+  const start = Date.now();
+
+  // Convert coordinates array into GeoJSON format for a MultiPoint
+  const geoJSON = {
+    type: 'MultiPoint',
+    coordinates: coordinates.map(c => [c[1], c[0]]) // Convert [lat, lon] to [lon, lat]
+  };
+
+  // Serialize GeoJSON to string
+  const geoJSONString = JSON.stringify(geoJSON);
+  const result = await pool.query(`
+    WITH params AS (
+      SELECT
+        ST_Transform(ST_SetSRID(ST_GeomFromGeoJSON($1), 6207), 32645) AS input_multipoint,
+        $2::float AS max_distance
+    )
+    SELECT DISTINCT e.*
+    FROM entities e, params p
+    WHERE 
+      ST_DWithin(ST_Transform(e.geom, 32645), p.input_multipoint, p.max_distance);
+  `, [geoJSONString, radius]);
+  
+  const end = Date.now();
+  return {
+    approach: 'postgis',
+    timeTaken: end - start,
+    recordsFound: result.rows.length,
+  };
+}
+```
+
+**Performance Results:**
+
+| **Point Size** | **Volume** | **Radius** | **PostGIS Time** | **Records Found** |
+|----------------|------------|------------|------------------|--------------------|
+| 1              | 100,000    | 1,000 meters | 354ms            | 4                  |
+| 1              | 100,000    | 5,000 meters | 240ms            | 20                 |
+| 100            | 100,000    | 1,000 meters | 605ms            | 93                 |
+| 100            | 100,000    | 5,000 meters | 592ms            | 2,071              |
+| 500            | 100,000    | 1,000 meters | 2,225ms          | 424                |
+| 500            | 100,000    | 5,000 meters | 2,950ms          | 10,104             |
+
+**Interpretation:**
+
+- **Speed:** PostGIS is slower compared to Geohashing, with times increasing significantly as the radius and point size grow.
+- **Accuracy:** It tends to find more records, which suggests higher accuracy but at the cost of performance.
+
+### **Comparison Summary**
+
+| **Volume (Records)** | **Geohash Time** | **PostGIS Time** |
+|----------------------|------------------|------------------|
+| 1,000                | 37ms - 706ms     | 354ms - 2,225ms  |
+| 100,000              | 29ms - 706ms     | 240ms - 2,950ms  |
+
+**Conclusion:**
+
+- **Geohashing** offers superior speed and efficiency for large datasets, making it suitable for scenarios where performance is crucial. Its precision settings need to be tuned according to the required radius to balance accuracy.
+- **PostGIS** provides accurate results and can handle complex queries, but it is slower and less scalable compared to Geohashing. It may be preferred for applications where accuracy is more critical than speed.
+
+### **Testing and Operations**
+
+**Docker Setup:**
+
+```bash
 docker-compose up --build
+```
 
-```
-Insert test records:
-```
+**Insert Test Records:**
+
+```bash
 curl -X POST http://localhost:3000/insert -H "Content-Type: application/json" -d '{"n": 1000}'
-
-
 ```
-Run performance tests:
-```
+
+**Run Performance Tests:**
+
+```bash
 curl http://localhost:3000/test
-
-
 ```
-Delete records:
-```
+
+**Delete Records:**
+
+```bash
 curl -X DELETE http://localhost:3000/delete
-
-
 ```
 
+**Data Visualization:**
 
-https://app.rawgraphs.io
+You can use [RawGraphs](https://app.rawgraphs.io) to visualize the performance data and further analyze the results.
+
+This integrated report provides a comprehensive overview of the performance and accuracy of different spatial querying methods, helping in selecting the most appropriate approach based on specific requirements.

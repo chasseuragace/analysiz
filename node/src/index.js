@@ -22,7 +22,7 @@ async function main() {
   ];
 
   const radii = [
-  //  1_000,     // Small radius in meters
+   1_000,     // Small radius in meters
     5_000,     // Medium radius
     // 10_000,    // Large radius
     // Add more radii as needed
@@ -30,13 +30,13 @@ async function main() {
 
   const pointSizes = [
     1,
-    5,
-    20,
-    50,   // Small number of points
+    // 5,
+    // 20,
+    // 50,   // Small number of points
 
     100,  // Medium number of points
     // 200,  // Large number of points
-    // 500,  // Very large number of points
+    500,  // Very large number of points
     // Add more sizes if needed
   ];
 
@@ -54,6 +54,7 @@ async function main() {
         
         // Iterate over point sizes
         for (const pointSize of pointSizes) {
+          
           const coordinates = generateRandomCoordinates(pointSize);
           console.log(`\n=== Running comparison for ${pointSize} points ===`);
           

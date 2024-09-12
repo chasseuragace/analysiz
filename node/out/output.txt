@@ -1,22 +1,26 @@
 Comparison Results:
 
+Point Size: 1, Volume: 100000 records, Radius: 1000 meters
+  geohash   : 37ms, 3 records found
+  postgres  : 354ms, 4 records found
+
 Point Size: 1, Volume: 100000 records, Radius: 5000 meters
-  geohash   : 125ms, 183 records found
-  postgres  : 692ms, 100000 records found
+  geohash   : 29ms, 4 records found
+  postgres  : 240ms, 20 records found
 
-Point Size: 5, Volume: 100000 records, Radius: 5000 meters
-  geohash   : 333ms, 900 records found
-  postgres  : 894ms, 100000 records found
-
-Point Size: 20, Volume: 100000 records, Radius: 5000 meters
-  geohash   : 667ms, 3588 records found
-  postgres  : 619ms, 100000 records found
-
-Point Size: 50, Volume: 100000 records, Radius: 5000 meters
-  geohash   : 682ms, 8440 records found
-  postgres  : 649ms, 100000 records found
+Point Size: 100, Volume: 100000 records, Radius: 1000 meters
+  geohash   : 136ms, 22 records found
+  postgres  : 605ms, 93 records found
 
 Point Size: 100, Volume: 100000 records, Radius: 5000 meters
-  geohash   : 739ms, 16544 records found
-  postgres  : 767ms, 100000 records found
+  geohash   : 133ms, 559 records found
+  postgres  : 592ms, 2071 records found
+
+Point Size: 500, Volume: 100000 records, Radius: 1000 meters
+  geohash   : 476ms, 95 records found
+  postgres  : 2225ms, 424 records found
+
+Point Size: 500, Volume: 100000 records, Radius: 5000 meters
+  geohash   : 706ms, 2868 records found
+  postgres  : 2950ms, 10104 records found
 
